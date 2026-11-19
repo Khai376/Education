@@ -1,10 +1,14 @@
 {
-  "name": "exam-tutor-web",
-  "version": "1.0.0",
+  "name": "education-hub",
+  "version": "2.0.0",
   "private": true,
-  "description": "Teacher-student timed exam tutoring web app",
+  "description": "Teacher and student education management hub",
   "main": "server.js",
-  "scripts": {"start": "node server.js"},
-  "engines": {"node": ">=20"},
-  "dependencies": {"express": "^4.21.2"}
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check teacher.js && node --check student.js && node --check attendance.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

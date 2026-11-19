@@ -1,16 +1,8 @@
 services:
   - type: web
-    name: exam-tutor-web
+    name: education-hub
     runtime: node
     plan: starter
     buildCommand: npm install
     startCommand: npm start
-    envVars:
-      - key: TEACHER_PIN
-        sync: false
-      - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: exam-data
-      mountPath: /var/data
-      sizeGB: 1
+    healthCheckPath: /

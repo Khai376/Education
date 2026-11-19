@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>เช็คชื่อเข้าเรียน | Education Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="attendance-page">
+  <header class="site-header compact attendance-header">
+    <a class="site-brand" href="index.html"><span class="brand-book">✓</span><span><b>Education Hub</b><small>Online attendance</small></span></a>
+    <a class="back-link" href="index.html">← กลับหน้าแรก</a>
+  </header>
+  <main class="attendance-main">
+    <section class="card attendance-card">
+      <div id="attendanceFormView">
+        <div class="attendance-hero-icon">📝</div>
+        <span class="eyebrow">ONLINE ATTENDANCE</span>
+        <h1>เช็คชื่อเข้าเรียน</h1>
+        <p class="muted">กรอกรหัส 6 ตัวที่ได้รับจากคุณครู พร้อมข้อมูลนักเรียน</p>
+        <form id="checkinForm">
+          <label>รหัสเช็คชื่อ<input id="checkinCode" maxlength="6" required autocomplete="one-time-code" placeholder="เช่น A1B2C3"></label>
+          <label>เลขประจำตัวนักเรียน<input id="checkinStudentCode" maxlength="50" required placeholder="เช่น 65001234"></label>
+          <label>ชื่อ - นามสกุล<input id="checkinStudentName" maxlength="120" required placeholder="เช่น สมชาย ใจดี"></label>
+          <button class="primary wide" type="submit">ยืนยันเช็คชื่อ →</button>
+        </form>
+        <div id="attendanceMsg" class="message" role="alert" aria-live="polite"></div>
+      </div>
+      <div id="attendanceSuccess" class="attendance-success" hidden>
+        <div class="success-check">✓</div>
+        <span class="eyebrow">CHECK-IN COMPLETE</span>
+        <h1>เช็คชื่อสำเร็จ</h1>
+        <p id="successStudent" class="success-student"></p>
+        <div class="success-detail"><div><span>วิชา / ห้องเรียน</span><b id="successTitle">-</b></div><div><span>วันที่</span><b id="successDate">-</b></div><div><span>สถานะ</span><b id="successStatus">-</b></div><div><span>เวลาเช็คชื่อ</span><b id="successTime">-</b></div></div>
+        <button id="checkinAnother" type="button">เช็คชื่อคนอื่น</button>
+      </div>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="attendance.js"></script>
+</body>
+</html>
