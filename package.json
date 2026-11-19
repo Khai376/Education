@@ -1,14 +1,23 @@
 {
-  "name": "education-hub",
-  "version": "2.0.0",
+  "name": "education-hub-primevue",
+  "version": "3.0.0",
   "private": true,
-  "description": "Teacher and student education management hub",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "check": "node --check server.js && node --check teacher.js && node --check student.js && node --check attendance.js"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "engines": {
-    "node": ">=20"
+  "dependencies": {
+    "@primeuix/themes": "^1.2.5",
+    "@supabase/supabase-js": "^2.0.0",
+    "primeicons": "^8.0.2",
+    "primevue": "^4.4.1",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "latest",
+    "vite": "latest"
   }
 }

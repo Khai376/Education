@@ -1,0 +1,1 @@
+<script setup>defineProps({icon:String,label:String,value:[String,Number],unit:String,tone:String})</script><template><article class="stat"><span :class="['statIcon',tone]"><i :class="['pi',icon]"/></span><div><small>{{label}}</small><b>{{value}}</b><small>{{unit}}</small></div></article></template>

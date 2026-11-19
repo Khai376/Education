@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: education-hub
-    runtime: node
-    plan: starter
-    buildCommand: npm install
-    startCommand: npm start
-    healthCheckPath: /
