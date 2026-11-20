@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 
 import TeacherLayout from "../layouts/TeacherLayout.vue";
+import { supabase } from "../services/supabase";
 
 // Teacher
 import Dashboard from "../teacher/views/Dashboard.vue";
@@ -18,33 +19,40 @@ import StudentAttendance from "../student/views/StudentAttendance.vue";
 import StudentExam from "../student/views/StudentHome.vue";
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
 
   routes: [
     // =========================
-    // Default
+    // Default / Login
     // =========================
-
     {
       path: "/",
       redirect: "/teacher",
     },
+    {
+      path: "/login",
+      name: "login",
+      component: () => import("../shared/Login.vue"),
+      meta: {
+        guestOnly: true,
+      },
+    },
 
     // =========================
-    // Teacher
+    // Teacher - protected
     // =========================
-
     {
       path: "/teacher",
       component: TeacherLayout,
-
+      meta: {
+        requiresTeacherAuth: true,
+      },
       children: [
         {
           path: "",
           name: "teacher-home",
           component: Dashboard,
         },
-
         {
           path: "attendance",
           name: "teacher-attendance",
@@ -60,25 +68,21 @@ const router = createRouter({
           name: "teacher-subjects-classes",
           component: SubjectsClasses,
         },
-
         {
           path: "students",
           name: "teacher-students",
           component: Students,
         },
-
         {
           path: "grades",
           name: "teacher-grades",
           component: Grades,
         },
-
         {
           path: "schedule",
           name: "teacher-schedule",
           component: Schedule,
         },
-
         {
           path: "exams",
           name: "teacher-exams",
@@ -88,29 +92,18 @@ const router = createRouter({
     },
 
     // =========================
-    // Student Home
+    // Student
     // =========================
-
     {
       path: "/student",
       name: "student-home",
       component: StudentHome,
     },
-
-    // =========================
-    // Student Attendance
-    // =========================
-
     {
       path: "/student/attendance",
       name: "student-attendance",
       component: StudentAttendance,
     },
-
-    // =========================
-    // Student Exam
-    // =========================
-
     {
       path: "/student/exam",
       name: "student-exam",
@@ -120,12 +113,70 @@ const router = createRouter({
     // =========================
     // Redirect old route
     // =========================
-
     {
       path: "/attendance",
       redirect: "/student/attendance",
     },
   ],
+});
+
+// =========================================
+// Authentication Guard
+// =========================================
+router.beforeEach(async (to) => {
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error) {
+      console.error("Auth session error:", error);
+    }
+
+    // Teacher routes must have a Supabase session.
+    if (to.matched.some((record) => record.meta.requiresTeacherAuth)) {
+      if (!session) {
+        return {
+          path: "/login",
+          query: {
+            redirect: to.fullPath,
+          },
+          replace: true,
+        };
+      }
+    }
+
+    // Logged-in teacher should not stay on the login page.
+    if (to.meta.guestOnly && session) {
+      const redirect =
+        typeof to.query.redirect === "string" &&
+        to.query.redirect.startsWith("/")
+          ? to.query.redirect
+          : "/teacher";
+
+      return {
+        path: redirect,
+        replace: true,
+      };
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Router auth guard error:", error);
+
+    if (to.matched.some((record) => record.meta.requiresTeacherAuth)) {
+      return {
+        path: "/login",
+        query: {
+          redirect: to.fullPath,
+        },
+        replace: true,
+      };
+    }
+
+    return true;
+  }
 });
 
 export default router;

@@ -1,7 +1,12 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [vue()],
-  base: '/Education/'
-})
+
+  // npm run dev      => /
+  // npm run build    => /Education/
+  base: command === 'serve'
+    ? '/'
+    : '/Education/'
+}))
