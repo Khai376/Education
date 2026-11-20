@@ -45,7 +45,12 @@ const saving = ref(false),
   success = ref("");
 const editorVisible = ref(false),
   draggingId = ref(null);
-const filterDay = ref("all"),
+function getTodayDayOfWeek() {
+  const day = new Date().getDay();
+  return day >= 1 && day <= 5 ? day : "all";
+}
+
+const filterDay = ref(getTodayDayOfWeek()),
   filterSubject = ref("all"),
   filterGrade = ref("all");
 const filterTeacher = ref("all"),
@@ -100,6 +105,13 @@ function periodLabelFromTime(time) {
   return (
     teachingPeriods.find((p) => p.start === String(time || "").slice(0, 5))
       ?.label || `เวลา ${String(time || "-").slice(0, 5)}`
+  );
+}
+function teacherInitial(name) {
+  return (
+    String(name || "?")
+      .trim()
+      .charAt(0) || "?"
   );
 }
 
@@ -195,14 +207,13 @@ const filteredSchedule = computed(() =>
   }),
 );
 function clearFilters() {
-  filterDay.value =
-    filterSubject.value =
-    filterGrade.value =
-    filterTeacher.value =
-    filterPeriod.value =
-    filterType.value =
-    filterOwnerTeacher.value =
-      "all";
+  filterDay.value = getTodayDayOfWeek();
+  filterSubject.value = "all";
+  filterGrade.value = "all";
+  filterTeacher.value = "all";
+  filterPeriod.value = "all";
+  filterType.value = "all";
+  filterOwnerTeacher.value = "all";
 }
 function eventAt(day, teacherId, p) {
   return (
@@ -338,6 +349,15 @@ const exportSchedule = computed(() =>
       return false;
     if (filterGrade.value !== "all" && e.gradeLevel !== filterGrade.value)
       return false;
+
+    // ให้ Export ตารางตรงกับตัวกรองครูบนหน้าจอด้วย
+    if (
+      filterTeacher.value !== "all" &&
+      effectiveTeacherId(e) !== filterTeacher.value &&
+      (e.lessonOwnerTeacherId || e.teacherId) !== filterTeacher.value
+    )
+      return false;
+
     if (
       filterPeriod.value !== "all" &&
       String(e.startTime).slice(0, 5) !== filterPeriod.value
@@ -345,6 +365,14 @@ const exportSchedule = computed(() =>
       return false;
     if (filterType.value === "normal" && e.substitute) return false;
     if (filterType.value === "substitute" && !e.substitute) return false;
+
+    // ให้ Export ตารางตรงกับตัวกรองเจ้าของคาบด้วย
+    if (
+      filterOwnerTeacher.value !== "all" &&
+      e.lessonOwnerTeacherId !== filterOwnerTeacher.value
+    )
+      return false;
+
     return true;
   }),
 );
@@ -408,6 +436,8 @@ function exportFilterSummary() {
       `วิชา ${subjectOptions.value.find((x) => x.value === filterSubject.value)?.label || "-"}`,
     );
   if (filterGrade.value !== "all") a.push(`ชั้น ${filterGrade.value}`);
+  if (filterTeacher.value !== "all")
+    a.push(`ครู ${teacherDisplayName(filterTeacher.value)}`);
   if (filterPeriod.value !== "all")
     a.push(
       periodOptions.value.find((x) => x.value === filterPeriod.value)?.label ||
@@ -415,7 +445,9 @@ function exportFilterSummary() {
     );
   if (filterType.value === "normal") a.push("คาบปกติ");
   if (filterType.value === "substitute") a.push("คาบสอนแทน");
-  return a.length ? a.join(" • ") : "ตารางสอนรายชั้นทั้งหมด";
+  if (filterOwnerTeacher.value !== "all")
+    a.push(`เจ้าของคาบ ${teacherDisplayName(filterOwnerTeacher.value)}`);
+  return a.length ? a.join(" • ") : "ตารางสอนตามข้อมูลทั้งหมด";
 }
 
 const substituteReportRows = computed(() =>
@@ -441,13 +473,13 @@ const substituteReportRows = computed(() =>
     .filter(
       (e) =>
         filterTeacher.value === "all" ||
-        e.substituteTeacherId === filterTeacher.value ||
-        e.teacherId === filterTeacher.value,
+        effectiveTeacherId(e) === filterTeacher.value ||
+        (e.lessonOwnerTeacherId || e.teacherId) === filterTeacher.value,
     )
     .filter(
       (e) =>
         filterOwnerTeacher.value === "all" ||
-        e.lessonOwnerTeacherId === filterOwnerTeacher.value,
+        (e.lessonOwnerTeacherId || e.teacherId) === filterOwnerTeacher.value,
     )
     .sort(
       (a, b) =>
@@ -573,13 +605,17 @@ watch(
   () => form.value.substitute,
   (v) => {
     if (!editorVisible.value || !form.value.id) return;
+
     if (v) {
-      form.value.teacherId = null;
+      // ถ้าเป็นคาบสอนแทนที่มีอยู่แล้ว ห้ามล้างครู/วันที่ตอนเปิด Dialog
       if (!form.value.originalSubstitute) {
+        form.value.teacherId = null;
         form.value.substituteStartDate = null;
         form.value.substituteEndDate = null;
       }
-    } else form.value.teacherId = form.value.lessonOwnerTeacherId;
+    } else {
+      form.value.teacherId = form.value.lessonOwnerTeacherId;
+    }
   },
 );
 
@@ -827,11 +863,7 @@ onMounted(load);
             />
           </div>
         </div>
-        <div class="legend">
-          <span><i class="dot" />คาบปกติ</span
-          ><span><i class="dot substitute" />สอนแทน</span
-          ><Tag severity="info" value="ห้ามเวลาสอนทับกัน" />
-        </div>
+       <br>
         <div class="all-days-stack">
           <div
             v-for="day in visibleDays"
@@ -839,7 +871,7 @@ onMounted(load);
             class="teacher-sheet-wrap"
           >
             <div class="teacher-sheet-title" :class="`day-${day.key}`">
-              วัน{{ day.label }}
+              <span class="day-title-dot"></span>วัน{{ day.label }}
             </div>
             <div class="teacher-sheet">
               <div class="teacher-head">ครู</div>
@@ -852,8 +884,11 @@ onMounted(load);
                 ><small>{{ p.start }}-{{ p.end }}</small>
               </div>
               <template v-for="t in sheetTeachers" :key="t.id"
-                ><div class="teacher-cell" :style="teacherColor(t.id)">
-                  {{ t.teacherName }}
+                ><div class="teacher-cell">
+                  <span class="teacher-avatar" :style="teacherColor(t.id)">{{
+                    teacherInitial(t.teacherName)
+                  }}</span
+                  ><b>{{ t.teacherName }}</b>
                 </div>
                 <div
                   v-for="p in teachingPeriods"
@@ -863,8 +898,10 @@ onMounted(load);
                   @dragover.prevent
                   @drop="dropAt(day.key, p.start)"
                 >
-                  <button
-                    v-if="eventAt(day.key, t.id, p)"
+                  <span v-if="!eventAt(day.key, t.id, p)" class="lesson-empty"
+                    >-</span
+                  ><button
+                    v-else
                     type="button"
                     class="lesson-chip"
                     :class="{ sub: eventAt(day.key, t.id, p).substitute }"
@@ -903,9 +940,7 @@ onMounted(load);
             {{ schoolReport.academicYear }}
           </h2>
         </header>
-        <div class="class-report-filter-summary">
-          ตัวกรอง: {{ exportFilterSummary() }}
-        </div>
+        <!--  -->
         <table class="class-report-table">
           <thead>
             <tr>
@@ -952,22 +987,21 @@ onMounted(load);
             </tr>
           </tbody>
         </table>
-        <footer class="class-report-signatures">
+        <footer class="substitute-report-signatures">
           <div>
             <p>
-              ลงชื่อ................................{{
-                schoolReport.academicHeadTitle
-              }}
+              ลงชื่อ............................................................
             </p>
             <p>({{ schoolReport.academicHeadName }})</p>
+            <p>{{ schoolReport.academicHeadTitle }}</p>
           </div>
           <div>
             <p>
-              ลงชื่อ................................{{
-                schoolReport.directorTitle
-              }}
+              ลงชื่อ............................................................
             </p>
             <p>({{ schoolReport.directorName }})</p>
+            <p>{{ schoolReport.directorTitle }}</p>
+            <!-- <p>{{ schoolReport.schoolName }}</p> -->
           </div>
         </footer>
       </article>
@@ -1039,7 +1073,7 @@ onMounted(load);
           </p>
           <p>({{ schoolReport.directorName }})</p>
           <p>{{ schoolReport.directorTitle }}</p>
-          <p>{{ schoolReport.schoolName }}</p>
+          <!-- <p>{{ schoolReport.schoolName }}</p> -->
         </div>
       </footer>
     </section>
@@ -1188,11 +1222,6 @@ onMounted(load);
             text
             @click="deleteEvent(form)"
           /><span /><Button
-            type="button"
-            label="ปิด"
-            text
-            @click="editorVisible = false"
-          /><Button
             type="submit"
             label="บันทึก"
             icon="pi pi-save"
@@ -1206,18 +1235,32 @@ onMounted(load);
 <style scoped>
 .schedule-page {
   --line: #dce7f2;
+  --navy: #102b52;
+  --blue: #167df5;
+  --muted: #71839d;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 .hero {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  padding: 20px 24px;
+  gap: 18px;
+  padding: 22px 26px;
   border: 1px solid var(--line);
   border-radius: 20px;
-  background: #f7fbff;
+  background: linear-gradient(110deg, #fff, #f2f8ff 58%, #effbf6);
+  box-shadow: 0 12px 30px rgba(24, 57, 94, 0.06);
+}
+.hero h1 {
+  margin: 10px 0 4px;
+  color: var(--navy);
+  font-size: 30px;
+}
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 .hero-actions,
 .legend,
@@ -1227,130 +1270,253 @@ onMounted(load);
   gap: 8px;
 }
 .kicker {
-  color: #167df5;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e7f2ff;
+  color: var(--blue);
   font-size: 9px;
+  font-weight: 800;
+}
+.hero-actions :deep(.p-button) {
+  border-radius: 9px;
 }
 .filter-panel {
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 13px;
-  background: #f8fbfe;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(24, 57, 94, 0.04);
 }
 .filter-title {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
+  align-items: center;
+  margin-bottom: 11px;
 }
 .filter-title b,
 .filter-title small {
   display: block;
 }
+.filter-title b {
+  color: #274664;
+  font-size: 14px;
+}
+.filter-title small {
+  margin-top: 2px;
+  color: #8293a6;
+  font-size: 9px;
+}
 .filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(140px, 1fr));
-  gap: 7px;
+  gap: 8px;
+}
+.filter-panel :deep(.p-select) {
+  border-color: #d6e3ef;
+  border-radius: 9px;
+  background: #fbfdff;
+  box-shadow: none;
 }
 .legend {
   flex-wrap: wrap;
+  padding: 0 4px;
+  color: #587089;
+  font-size: 10px;
 }
 .legend span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 .dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #358bed;
+  background: #2c8aef;
 }
 .dot.substitute {
-  background: #ef9a30;
+  background: #ef8b00;
 }
 .all-days-stack {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 .teacher-sheet-wrap {
   overflow: auto;
-  border: 1px solid #111;
+  border: 1px solid #dce7f2;
+  border-radius: 15px;
   background: #fff;
+  box-shadow: 0 8px 24px rgba(24, 57, 94, 0.05);
 }
 .teacher-sheet-title {
-  padding: 10px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  color: #203f5e;
+  font-size: 14px;
   font-weight: 800;
 }
+.day-title-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: currentColor;
+}
 .day-1 {
-  background: #fff200;
+  background: linear-gradient(90deg, #fff8dc, #fffdf4);
+  color: #eeb31c;
 }
 .day-2 {
-  background: #eeb5e7;
+  background: linear-gradient(90deg, #fff0f7, #fff9fc);
+  color: #e84b99;
 }
 .day-3 {
-  background: #92d050;
+  background: linear-gradient(90deg, #eaf9ef, #f8fdf9);
+  color: #24a968;
 }
 .day-4 {
-  background: #ffc000;
+  background: linear-gradient(90deg, #fff4e6, #fffaf5);
+  color: #ef8b27;
 }
 .day-5 {
-  background: #a6caec;
+  background: linear-gradient(90deg, #eaf5ff, #f8fcff);
+  color: #348bd8;
 }
 .teacher-sheet {
   display: grid;
-  grid-template-columns: 130px repeat(6, minmax(120px, 1fr));
-  min-width: 820px;
+  grid-template-columns: 135px repeat(6, minmax(118px, 1fr));
+  min-width: 850px;
+  border-top: 1px solid #dce7f2;
 }
 .teacher-head,
 .period-head,
 .teacher-cell,
 .lesson-cell {
-  min-height: 58px;
-  border-right: 1px solid #111;
-  border-bottom: 1px solid #111;
+  border-right: 1px solid #dce7f2;
+  border-bottom: 1px solid #dce7f2;
+  min-height: 44px;
 }
 .teacher-head,
-.period-head,
-.teacher-cell {
+.period-head {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #f2f7fc;
+  color: #294967;
+}
+.teacher-head {
+  font-size: 16px;
+  font-weight: 800;
 }
 .period-head {
   flex-direction: column;
-  background: #ffafa8;
+  padding: 4px;
+}
+.period-head b {
+  font-size: 16px;
+}
+.period-head small {
+  margin-top: 2px;
+  color: #8093a7;
+  font-size: 14px;
 }
 .teacher-cell {
-  font-size: 11px;
-  font-weight: 700;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px;
+  background: #fbfdff;
+  color: #2d4c69;
+}
+.teacher-cell b {
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.teacher-avatar {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 800;
 }
 .lesson-cell {
-  padding: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 4px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.lesson-cell:hover {
+  background: #f8fbff;
+}
+.lesson-empty {
+  color: #c3ced9;
+  font-size: 9px;
 }
 .lesson-chip {
+  position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 51px;
+  min-height: 34px;
+  height: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
+  padding: 4px 7px 4px 10px;
   border: 1px solid transparent;
+  border-radius: 7px;
   cursor: pointer;
+  box-shadow: 0 2px 5px rgba(40, 77, 116, 0.04);
+  overflow: hidden;
+}
+.lesson-chip::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: currentColor;
+  opacity: 0.85;
+}
+.lesson-chip b {
+  font-size: 14px;
+  line-height: 1.1;
+}
+.lesson-chip span {
+  font-size: 14px;
+  opacity: 0.86;
 }
 .lesson-chip.sub {
-  background: #fff0c2 !important;
-  border: 2px solid #ef9a22 !important;
-  color: #754a00 !important;
+  background: #fff3dc !important;
+  border-color: #f2cb83 !important;
+  color: #8b5907 !important;
+}
+.lesson-chip.sub::before {
+  background: #ef8b00;
 }
 .substitute-name {
+  margin-top: 2px;
   padding: 2px 5px;
   border-radius: 99px;
-  background: #ef8b00;
+  background: #f52e2e;
   color: #fff;
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 700;
 }
 .form {

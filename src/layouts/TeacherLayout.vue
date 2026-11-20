@@ -124,14 +124,11 @@ onUnmounted(() => authSubscription?.unsubscribe());
         <button type="button" class="menu-toggle" aria-label="เปิดเมนู" @click="open = !open">
           <i class="pi pi-bars" />
         </button>
-        <div class="topbar-title">Education Hub</div>
+       
         <div class="topbar-user">
           <template v-if="user">
-            <i class="pi pi-user" />
-            <div class="topbar-user-info">
-              <b>ครูผู้สอน</b>
-              <small :title="user.email">{{ user.email || "Teacher workspace" }}</small>
-            </div>
+          
+            
             <Button
               type="button"
               label="ออกจากระบบ"
