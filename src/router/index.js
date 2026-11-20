@@ -12,6 +12,7 @@ import Schedule from "../teacher/views/Schedule.vue";
 import Exams from "../teacher/views/Exams.vue";
 import HomeroomTeachers from "../teacher/views/HomeroomTeachers.vue";
 import SubjectsClasses from "../teacher/views/SubjectsClasses.vue";
+import SystemSettings from "../teacher/views/SystemSettings.vue";
 
 // Student
 import StudentHome from "../student/views/StudentHome.vue";
@@ -87,6 +88,11 @@ const router = createRouter({
           path: "exams",
           name: "teacher-exams",
           component: Exams,
+        },
+        {
+          path: "settings",
+          name: "teacher-settings",
+          component: SystemSettings,
         },
       ],
     },

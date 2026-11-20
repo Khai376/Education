@@ -7,6 +7,7 @@ import Message from "primevue/message";
 import Select from "primevue/select";
 import Tag from "primevue/tag";
 import { rpc } from "../../services/supabase";
+import schoolLogo from "../../assets/image.png";
 
 const weekDays = [
   { key: 1, label: "จันทร์" },
@@ -23,7 +24,8 @@ const teachingPeriods = [
   { key: 5, label: "คาบที่ 5", start: "13:30", end: "14:30" },
   { key: 6, label: "คาบที่ 6", start: "14:30", end: "15:30" },
 ];
-const schoolReport = {
+
+const schoolReport = ref({
   schoolName: "โรงเรียนบ้านบ่อ",
   semester: "2",
   academicYear: "2569",
@@ -31,26 +33,26 @@ const schoolReport = {
   academicHeadName: "นางสาวพิกุลทอง ถ่องตะคุ",
   directorTitle: "ผู้อำนวยการ",
   directorName: "นายจิรวัฒน์ แสงสุรินทร์",
-};
+});
 
 const schedule = ref([]),
   offerings = ref([]),
-  teachers = ref([]),
-  buildingChoices = ref([]),
+  teachers = ref([]);
+const buildingChoices = ref([]),
   classroomChoices = ref([]);
 const saving = ref(false),
   message = ref(""),
-  success = ref(""),
-  editorVisible = ref(false),
+  success = ref("");
+const editorVisible = ref(false),
   draggingId = ref(null);
 const filterDay = ref("all"),
   filterSubject = ref("all"),
-  filterGrade = ref("all"),
-  filterTeacher = ref("all"),
+  filterGrade = ref("all");
+const filterTeacher = ref("all"),
   filterPeriod = ref("all"),
-  filterType = ref("all"),
-  filterOwnerTeacher = ref("all");
-const printMode = ref("schedule");
+  filterType = ref("all");
+const filterOwnerTeacher = ref("all");
+
 function emptyForm() {
   return {
     id: null,
@@ -193,21 +195,22 @@ const filteredSchedule = computed(() =>
   }),
 );
 function clearFilters() {
-  filterDay.value = "all";
-  filterSubject.value = "all";
-  filterGrade.value = "all";
-  filterTeacher.value = "all";
-  filterPeriod.value = "all";
-  filterType.value = "all";
-  filterOwnerTeacher.value = "all";
+  filterDay.value =
+    filterSubject.value =
+    filterGrade.value =
+    filterTeacher.value =
+    filterPeriod.value =
+    filterType.value =
+    filterOwnerTeacher.value =
+      "all";
 }
-function eventAt(day, teacherId, period) {
+function eventAt(day, teacherId, p) {
   return (
     filteredSchedule.value.find(
       (e) =>
         (e.lessonOwnerTeacherId || e.teacherId) === teacherId &&
         Number(e.dayOfWeek) === Number(day) &&
-        String(e.startTime).slice(0, 5) === period.start,
+        String(e.startTime).slice(0, 5) === p.start,
     ) || null
   );
 }
@@ -235,34 +238,21 @@ function lessonStyle(e) {
     ? { background: "#fff0c2", borderColor: "#ef9a22", color: "#754a00" }
     : teacherColor(e?.lessonOwnerTeacherId || e?.teacherId);
 }
-function todaysSubstituteCount(id, include = false) {
+function todaysSubstituteCount(id) {
   const today = localDateKey();
-  let n = schedule.value.filter(
+  return schedule.value.filter(
     (e) =>
       effectiveTeacherId(e, today) === id &&
       e.substituteConfigured &&
       e.substituteStartDate <= today &&
       today <= e.substituteEndDate,
   ).length;
-  if (
-    include &&
-    form.value.teacherId === id &&
-    form.value.substituteStartDate <= today &&
-    today <= form.value.substituteEndDate &&
-    !schedule.value.some(
-      (e) =>
-        String(e.id) === String(form.value.id) &&
-        effectiveTeacherId(e, today) === id,
-    )
-  )
-    n++;
-  return n;
 }
 function teacherAvailability(t) {
   const day = Number(form.value.dayOfWeek),
     start = form.value.startTime,
-    end = form.value.endTime,
-    dayName = weekDays.find((d) => d.key === day)?.label || "-",
+    end = form.value.endTime;
+  const dayName = weekDays.find((d) => d.key === day)?.label || "-",
     period = periodLabelFromTime(start);
   const c = schedule.value.find(
     (e) =>
@@ -279,7 +269,7 @@ function teacherAvailability(t) {
       }
     : {
         available: true,
-        reason: `ว่าง • วัน${dayName} • ${period} ${start}-${end} • สอนแทนวันนี้ ${todaysSubstituteCount(t.id, form.value.teacherId === t.id)} คาบ`,
+        reason: `ว่าง • วัน${dayName} • ${period} ${start}-${end} • สอนแทนวันนี้ ${todaysSubstituteCount(t.id)} คาบ`,
       };
 }
 const substituteTeacherOptions = computed(() =>
@@ -337,7 +327,6 @@ function onFreeTimeChange() {
   if (p) form.value.endTime = p.end;
 }
 
-// Export creates one page per class/room. Teacher filters are intentionally ignored; each cell shows the actual teacher.
 const exportSchedule = computed(() =>
   schedule.value.filter((e) => {
     if (
@@ -406,8 +395,7 @@ function groupEventAt(group, day, p) {
 }
 function exportTeacherName(e) {
   if (!e) return "";
-  if (e.teacherName) return e.teacherName;
-  return teacherDisplayName(effectiveTeacherId(e));
+  return e.teacherName || teacherDisplayName(effectiveTeacherId(e));
 }
 function exportFilterSummary() {
   const a = [];
@@ -467,13 +455,6 @@ const substituteReportRows = computed(() =>
         String(a.startTime).localeCompare(String(b.startTime)),
     ),
 );
-
-function formatThaiDate(value) {
-  if (!value) return "-";
-  const [y, m, d] = String(value).split("-").map(Number);
-  if (!y || !m || !d) return value;
-  return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y + 543}`;
-}
 function reportOwnerName(e) {
   return e.lessonOwnerTeacherName || teacherDisplayName(e.lessonOwnerTeacherId);
 }
@@ -492,30 +473,24 @@ function reportPeriodNumber(e) {
       ?.key || "-"
   );
 }
-function exportSubstituteReport() {
-  if (!substituteReportRows.value.length)
-    return window.alert("ไม่พบรายการครูลาและครูสอนแทนตามตัวกรอง");
-  printMode.value = "substitute";
-  editorVisible.value = false;
-  const old = document.title;
-  document.title = `ใบรายงานครูลา-สอนแทน-${localDateKey()}`;
-  document.body.classList.add(
-    "schedule-printing",
-    "substitute-report-printing",
-  );
-  const clean = () => {
-    document.body.classList.remove(
-      "schedule-printing",
-      "substitute-report-printing",
-    );
-    document.title = old;
-    printMode.value = "schedule";
-    window.removeEventListener("afterprint", clean);
-  };
-  window.addEventListener("afterprint", clean);
-  setTimeout(() => window.print(), 150);
-}
 
+async function loadSchoolSettings() {
+  try {
+    const data = await rpc("teacher_school_settings_get");
+    if (!data) return;
+    schoolReport.value = {
+      schoolName: data.schoolName || "โรงเรียนบ้านบ่อ",
+      semester: String(data.semester || "2"),
+      academicYear: String(data.academicYear || "2569"),
+      academicHeadTitle: data.academicHeadTitle || "หัวหน้าฝ่ายวิชาการ",
+      academicHeadName: data.academicHeadName || "",
+      directorTitle: data.directorTitle || "ผู้อำนวยการ",
+      directorName: data.directorName || "",
+    };
+  } catch (error) {
+    console.error("loadSchoolSettings:", error);
+  }
+}
 async function load() {
   message.value = "";
   try {
@@ -524,6 +499,7 @@ async function load() {
       rpc("teacher_schedule_list"),
       rpc("teacher_schedule_offerings"),
       rpc("teacher_homeroom_list"),
+      loadSchoolSettings(),
     ]);
     schedule.value = s || [];
     offerings.value = o || [];
@@ -706,22 +682,34 @@ async function dropAt(day, time) {
   });
   await load();
 }
+
+function exportSubstituteReport() {
+  if (!substituteReportRows.value.length)
+    return window.alert("ไม่พบรายการครูลาและครูสอนแทนตามตัวกรอง");
+  editorVisible.value = false;
+  const old = document.title;
+  document.title = `ใบรายงานครูลา-สอนแทน-${schoolReport.value.academicYear}`;
+  document.body.classList.add("substitute-report-printing");
+  const clean = () => {
+    document.body.classList.remove("substitute-report-printing");
+    document.title = old;
+    window.removeEventListener("afterprint", clean);
+  };
+  window.addEventListener("afterprint", clean);
+  setTimeout(() => window.print(), 150);
+}
 function exportScheduleTable() {
   if (!exportSchedule.value.length)
     return window.alert("ไม่พบข้อมูลตามตัวกรอง");
-  printMode.value = "schedule";
   editorVisible.value = false;
   const old = document.title;
   document.title =
     filterGrade.value !== "all"
-      ? `ตารางสอน-${filterGrade.value}-${schoolReport.academicYear}`
-      : `ตารางสอนทุกชั้น-${schoolReport.academicYear}`;
-  document.body.classList.add("schedule-printing", "schedule-table-printing");
+      ? `ตารางสอน-${filterGrade.value}-${schoolReport.value.academicYear}`
+      : `ตารางสอนทุกชั้น-${schoolReport.value.academicYear}`;
+  document.body.classList.add("schedule-table-printing");
   const clean = () => {
-    document.body.classList.remove(
-      "schedule-printing",
-      "schedule-table-printing",
-    );
+    document.body.classList.remove("schedule-table-printing");
     document.title = old;
     window.removeEventListener("afterprint", clean);
   };
@@ -772,7 +760,7 @@ onMounted(load);
         <div class="filter-panel">
           <div class="filter-title">
             <div>
-              <b>กรองตารางเรียน</b><small>ตัวกรองทั้งหมดมีผลต่อ Export</small>
+              <b>กรองตารางเรียน</b><small>ตัวกรองมีผลต่อเอกสาร Export</small>
             </div>
             <Button
               label="ล้างตัวกรอง"
@@ -921,22 +909,22 @@ onMounted(load);
         <table class="class-report-table">
           <thead>
             <tr>
-              <th rowspan="2" class="day-column">วัน</th>
-              <th v-for="p in exportMorningPeriods" :key="p.key">
+              <th rowspan="2">วัน</th>
+              <th v-for="p in exportMorningPeriods" :key="`m-${p.key}`">
                 {{ p.key }}
               </th>
               <th v-if="showExportLunch" rowspan="2" class="lunch-column">
                 พักกลางวัน
               </th>
-              <th v-for="p in exportAfternoonPeriods" :key="p.key">
+              <th v-for="p in exportAfternoonPeriods" :key="`a-${p.key}`">
                 {{ p.key }}
               </th>
             </tr>
             <tr>
-              <th v-for="p in exportMorningPeriods" :key="p.key">
+              <th v-for="p in exportMorningPeriods" :key="`mt-${p.key}`">
                 {{ p.start.replace(":", ".") }}-{{ p.end.replace(":", ".") }}
               </th>
-              <th v-for="p in exportAfternoonPeriods" :key="p.key">
+              <th v-for="p in exportAfternoonPeriods" :key="`at-${p.key}`">
                 {{ p.start.replace(":", ".") }}-{{ p.end.replace(":", ".") }}
               </th>
             </tr>
@@ -944,42 +932,20 @@ onMounted(load);
           <tbody>
             <tr v-for="d in exportDays" :key="d.key">
               <th>{{ d.label }}</th>
-              <td
-                v-for="p in exportMorningPeriods"
-                :key="p.key"
-                :class="{
-                  'report-substitute-cell': groupEventAt(g, d.key, p)
-                    ?.substitute,
-                }"
-              >
+              <td v-for="p in exportMorningPeriods" :key="p.key">
                 <template v-if="groupEventAt(g, d.key, p)"
                   ><strong>{{ groupEventAt(g, d.key, p).subjectName }}</strong
                   ><span
                     >({{ exportTeacherName(groupEventAt(g, d.key, p)) }})</span
-                  ><small
-                    v-if="groupEventAt(g, d.key, p).substitute"
-                    class="report-substitute-label"
-                    >สอนแทน</small
                   ></template
                 >
               </td>
-              <td v-if="showExportLunch" class="lunch-column" />
-              <td
-                v-for="p in exportAfternoonPeriods"
-                :key="p.key"
-                :class="{
-                  'report-substitute-cell': groupEventAt(g, d.key, p)
-                    ?.substitute,
-                }"
-              >
+              <td v-if="showExportLunch" class="lunch-column"></td>
+              <td v-for="p in exportAfternoonPeriods" :key="p.key">
                 <template v-if="groupEventAt(g, d.key, p)"
                   ><strong>{{ groupEventAt(g, d.key, p).subjectName }}</strong
                   ><span
                     >({{ exportTeacherName(groupEventAt(g, d.key, p)) }})</span
-                  ><small
-                    v-if="groupEventAt(g, d.key, p).substitute"
-                    class="report-substitute-label"
-                    >สอนแทน</small
                   ></template
                 >
               </td>
@@ -1008,7 +974,7 @@ onMounted(load);
     </section>
 
     <section class="substitute-report-sheet" aria-hidden="true">
-      <div class="report-logo-space"></div>
+      <div class="report-logo"><img :src="schoolLogo" alt="ตราโรงเรียน" /></div>
       <header class="substitute-report-header">
         <h2>แบบบันทึกการจัดบุคลากรสอนแทน{{ schoolReport.schoolName }}</h2>
         <h3>
@@ -1065,18 +1031,19 @@ onMounted(load);
             ลงชื่อ............................................................
           </p>
           <p>({{ schoolReport.academicHeadName }})</p>
-          <b>{{ schoolReport.academicHeadTitle }}</b>
+          <p>{{ schoolReport.academicHeadTitle }}</p>
         </div>
         <div>
           <p>
             ลงชื่อ............................................................
           </p>
           <p>({{ schoolReport.directorName }})</p>
-          <b>{{ schoolReport.directorTitle }}</b>
+          <p>{{ schoolReport.directorTitle }}</p>
           <p>{{ schoolReport.schoolName }}</p>
         </div>
       </footer>
     </section>
+
     <Dialog
       v-model:visible="editorVisible"
       modal
@@ -1246,6 +1213,7 @@ onMounted(load);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 20px 24px;
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -1255,8 +1223,8 @@ onMounted(load);
 .legend,
 .actions {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
 .kicker {
   color: #167df5;
@@ -1282,6 +1250,14 @@ onMounted(load);
   grid-template-columns: repeat(4, minmax(140px, 1fr));
   gap: 7px;
 }
+.legend {
+  flex-wrap: wrap;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .dot {
   width: 9px;
   height: 9px;
@@ -1298,10 +1274,11 @@ onMounted(load);
 .teacher-sheet-wrap {
   overflow: auto;
   border: 1px solid #111;
+  background: #fff;
 }
 .teacher-sheet-title {
-  text-align: center;
   padding: 10px;
+  text-align: center;
   font-weight: 800;
 }
 .day-1 {
@@ -1328,9 +1305,9 @@ onMounted(load);
 .period-head,
 .teacher-cell,
 .lesson-cell {
+  min-height: 58px;
   border-right: 1px solid #111;
   border-bottom: 1px solid #111;
-  min-height: 58px;
 }
 .teacher-head,
 .period-head,
@@ -1346,6 +1323,7 @@ onMounted(load);
 .teacher-cell {
   font-size: 11px;
   font-weight: 700;
+  text-align: center;
 }
 .lesson-cell {
   padding: 3px;
@@ -1354,21 +1332,26 @@ onMounted(load);
   width: 100%;
   height: 100%;
   min-height: 51px;
-  border: 1px solid transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 .lesson-chip.sub {
   background: #fff0c2 !important;
   border: 2px solid #ef9a22 !important;
+  color: #754a00 !important;
 }
 .substitute-name {
-  background: #ef8b00;
-  color: #fff;
   padding: 2px 5px;
   border-radius: 99px;
+  background: #ef8b00;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
 }
 .form {
   display: grid;
@@ -1386,12 +1369,15 @@ onMounted(load);
 .form input {
   height: 42px;
   padding: 0 12px;
+  border: 1px solid #d3dfeb;
+  border-radius: 9px;
 }
 .locked-lesson {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   padding: 12px;
+  border-radius: 10px;
   background: #f8fbfe;
 }
 .selected-substitute-info {
@@ -1404,8 +1390,14 @@ onMounted(load);
 .selected-substitute-info span {
   display: block;
 }
+.selected-substitute-info span {
+  margin-top: 3px;
+  color: #527466;
+  font-size: 10px;
+}
 .actions {
   justify-content: space-between;
+  margin-top: 4px;
 }
 .class-export-sheet,
 .substitute-report-sheet {
@@ -1418,7 +1410,8 @@ onMounted(load);
 }
 @media (max-width: 700px) {
   .filters,
-  .grid {
+  .grid,
+  .locked-lesson {
     grid-template-columns: 1fr;
   }
   .hero {
@@ -1432,6 +1425,10 @@ onMounted(load);
   .hero-actions :deep(.p-button) {
     width: 100%;
   }
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>
 
@@ -1441,208 +1438,99 @@ onMounted(load);
   margin: 8mm;
 }
 @media print {
+  * {
+    font-family: "TH Sarabun New", "Sarabun", Tahoma, sans-serif !important;
+  }
   html,
   body {
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
-    font-family: Tahoma, Arial, sans-serif !important;
   }
-  body.schedule-printing * {
-    visibility: hidden !important;
+  body.substitute-report-printing .topbar,
+  body.substitute-report-printing .sidebar,
+  body.schedule-table-printing .topbar,
+  body.schedule-table-printing .sidebar {
+    display: none !important;
   }
-  body.schedule-table-printing .class-export-sheet,
-  body.schedule-table-printing .class-export-sheet * {
-    visibility: visible !important;
-  }
-  body.schedule-table-printing .class-export-sheet {
+  body.substitute-report-printing .main,
+  body.substitute-report-printing .content,
+  body.substitute-report-printing .schedule-page,
+  body.schedule-table-printing .main,
+  body.schedule-table-printing .content,
+  body.schedule-table-printing .schedule-page {
     display: block !important;
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    background: #fff;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
   }
-  body.substitute-report-printing .substitute-report-sheet,
-  body.substitute-report-printing .substitute-report-sheet * {
-    visibility: visible !important;
+  body.substitute-report-printing .schedule-page > * {
+    display: none !important;
   }
-  body.substitute-report-printing .substitute-report-sheet {
+  body.substitute-report-printing .schedule-page > .substitute-report-sheet {
     display: block !important;
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    background: #fff;
   }
-  .class-report-page {
-    break-after: page;
-    page-break-after: always;
+  body.schedule-table-printing .schedule-page > * {
+    display: none !important;
   }
-  .class-report-page:last-child {
-    break-after: auto;
-    page-break-after: auto;
+  body.schedule-table-printing .schedule-page > .class-export-sheet {
+    display: block !important;
   }
-  .class-report-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    margin-bottom: 3mm;
+  .report-logo {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    height: 18mm;
+    margin: 0 0 1mm !important;
   }
-  .class-report-header h2 {
-    font-size: 16px;
-    margin: 0;
-  }
-  .class-report-filter-summary {
-    font-size: 8px;
-    color: #475569;
-    margin-bottom: 3mm;
-  }
-  .class-report-table {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
-    font-size: 10px;
-  }
-  .class-report-table th,
-  .class-report-table td {
-    border: 1px solid #000;
-    padding: 2mm 1mm;
-    text-align: center;
-    vertical-align: middle;
-  }
-  .class-report-table thead th,
-  .lunch-column {
-    background: #f7cfad !important;
+  .report-logo img {
+    display: block !important;
+    width: 16mm !important;
+    height: 16mm !important;
+    object-fit: contain !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
-  }
-  .class-report-table tbody tr {
-    height: 22mm;
-  }
-  .class-report-table td strong,
-  .class-report-table td span {
-    display: block;
-  }
-  .class-report-signatures {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25mm;
-    margin: 16mm 28mm 0;
-    text-align: center;
-    font-size: 10px;
-  }
-}
-
-@media print {
-  .substitute-report-header {
-    text-align: center;
-    margin-bottom: 4mm;
-  }
-  .substitute-report-header h2 {
-    margin: 0;
-    font-size: 16px;
-  }
-  .substitute-report-header h3 {
-    margin: 1mm 0;
-    font-size: 13px;
-  }
-  .substitute-report-header p {
-    margin: 0;
-    font-size: 9px;
-  }
-  .substitute-report-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-    font-size: 8px;
-  }
-  .substitute-report-table th,
-  .substitute-report-table td {
-    border: 1px solid #000;
-    padding: 1.5mm 1mm;
-    text-align: center;
-    vertical-align: middle;
-  }
-  .substitute-report-table th {
-    background: #f7cfad !important;
-    font-size: 8px;
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-  .substitute-report-table tbody tr {
-    height: 14mm;
-  }
-  .substitute-report-table th:nth-child(1) {
-    width: 11mm;
-  }
-  .substitute-report-table th:nth-child(2) {
-    width: 24mm;
-  }
-  .substitute-report-table th:nth-child(4) {
-    width: 18mm;
-  }
-  .substitute-report-table th:nth-child(7) {
-    width: 29mm;
-  }
-  .substitute-report-table th:nth-child(8) {
-    width: 31mm;
-  }
-  .substitute-report-table th:nth-child(9) {
-    width: 25mm;
-  }
-  .substitute-report-signatures {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30mm;
-    margin: 15mm 25mm 0;
-    text-align: center;
-    font-size: 10px;
-  }
-  .substitute-report-signatures p {
-    margin: 0 0 3mm;
-  }
-}
-
-@media print {
-  .report-logo-space {
-    height: 12mm;
   }
   .substitute-report-header {
     text-align: center !important;
-    margin-bottom: 2mm !important;
+    margin: 0 0 2mm !important;
   }
-  .substitute-report-header h2 {
+  .substitute-report-header h2,
+  .substitute-report-header h3 {
     margin: 0 !important;
-    font-size: 15px !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    line-height: 1.05 !important;
   }
   .substitute-report-header h3 {
-    margin: 1mm 0 !important;
-    font-size: 12px !important;
+    margin-top: 1mm !important;
   }
   .substitute-report-header p {
     margin: 1mm 0 0 !important;
-    font-size: 10px !important;
+    font-size: 16px !important;
+    line-height: 1.05 !important;
   }
   .substitute-report-table {
     width: 100% !important;
     border-collapse: collapse !important;
     table-layout: fixed !important;
-    font-size: 9px !important;
   }
   .substitute-report-table th,
   .substitute-report-table td {
     border: 1px solid #000 !important;
-    padding: 1.3mm 0.8mm !important;
+    padding: 0.5mm 0.8mm !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
     text-align: center !important;
     vertical-align: middle !important;
   }
   .substitute-report-table th {
-    height: 13mm !important;
-    background: #fff !important;
-    font-size: 9px !important;
+    height: 10mm !important;
     font-weight: 700 !important;
   }
   .substitute-report-table tbody tr {
-    height: 8.5mm !important;
+    height: 7mm !important;
+    break-inside: avoid !important;
   }
   .substitute-report-table th:nth-child(1) {
     width: 11mm !important;
@@ -1654,38 +1542,94 @@ onMounted(load);
     width: 14mm !important;
   }
   .substitute-report-table th:nth-child(4) {
-    width: 46mm !important;
+    width: 44mm !important;
   }
   .substitute-report-table th:nth-child(5) {
-    width: 46mm !important;
+    width: 44mm !important;
   }
   .substitute-report-table th:nth-child(6) {
-    width: 28mm !important;
+    width: 30mm !important;
   }
   .substitute-report-table th:nth-child(7) {
     width: 34mm !important;
   }
   .substitute-report-table th:nth-child(8) {
-    width: 20mm !important;
+    width: 22mm !important;
   }
-  .substitute-report-signatures {
+  .substitute-report-signatures,
+  .class-report-signatures {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 60mm !important;
-    margin: 12mm 16mm 0 !important;
     text-align: center !important;
-    font-size: 10px !important;
+    break-inside: avoid !important;
+  }
+  .substitute-report-signatures {
+    gap: 60mm !important;
+    margin: 8mm 16mm 0 !important;
+  }
+  .substitute-report-signatures,
+  .substitute-report-signatures p,
+  .class-report-signatures,
+  .class-report-signatures p {
+    font-size: 16px !important;
+    line-height: 1.05 !important;
   }
   .substitute-report-signatures p {
-    margin: 0 0 2mm !important;
+    margin: 0 0 1mm !important;
   }
-  .substitute-report-signatures b {
-    font-weight: 700 !important;
+  body.schedule-table-printing .class-report-page {
+    width: 100% !important;
+    break-after: page;
+    page-break-after: always;
   }
-}
-@media print {
-  * {
-    font-family: "Angsana New", Tahoma, sans-serif !important;
+  body.schedule-table-printing .class-report-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .class-report-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 15mm;
+    margin: 0 2mm 3mm;
+  }
+  .class-report-header h2 {
+    margin: 0 !important;
+    font-size: 18px !important;
+  }
+  .class-report-filter-summary {
+    margin: 0 2mm 3mm;
+    font-size: 14px !important;
+  }
+  .class-report-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+  }
+  .class-report-table th,
+  .class-report-table td {
+    border: 1px solid #000 !important;
+    padding: 1mm !important;
+    font-size: 16px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+  .class-report-table thead th,
+  .class-report-table .lunch-column {
+    background: #f7cfad !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .class-report-table tbody tr {
+    height: 18mm;
+  }
+  .class-report-table td strong,
+  .class-report-table td span {
+    display: block;
+  }
+  .class-report-signatures {
+    gap: 25mm !important;
+    margin: 12mm 28mm 0 !important;
   }
 }
 </style>

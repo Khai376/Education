@@ -19,3 +19,18 @@ Logic
 ครูไม่อนุญาตสอนแทนเห็นในรายการ แต่เลือกไม่ได้
 พ้นวันสิ้นสุดแล้วกลับเจ้าของคาบ
 คาบสอนแทนแสดงสีส้ม
+
+
+
+Branch = gh-pages
+Folder = /(root)
+เหลือกด Save ถ้าปุ่มยังเปิดให้กด
+
+หลังจากนั้นเว็บ Production จะใช้ branch gh-pages ที่มาจาก dist/
+
+ครั้งต่อไปเวลาแก้เว็บ ใช้:
+
+git add .
+git commit -m "update production"
+git push origin main
+npm run deploy

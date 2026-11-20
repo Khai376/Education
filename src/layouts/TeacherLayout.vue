@@ -19,6 +19,7 @@ const menu = [
   ["pi-users", "รายชื่อนักเรียน", "/teacher/students"],
   ["pi-calendar", "ตารางเรียน", "/teacher/schedule"],
   ["pi-file-edit", "จัดการข้อสอบ", "/teacher/exams"],
+  ["pi-cog", "ตั้งค่าระบบ", "/teacher/settings"],
 ];
 
 async function loadUser() {
